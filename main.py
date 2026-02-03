@@ -3,7 +3,7 @@ from enum import Enum, auto
 from functools import lru_cache
 
 
-class color(Enum):
+class Color(Enum):
     BLACK = 0
     WHITE = 1
     RED = 2
@@ -11,8 +11,8 @@ class color(Enum):
     BLUE = 4
     YELLOW = 5
 
-type State = tuple[color, color, color, color]
-type UnfinishedState = tuple[set[color], set[color], set[color], set[color]]
+type State = tuple[Color, Color, Color, Color]
+type UnfinishedState = tuple[set[Color], set[Color], set[Color], set[Color]]
 
 
 @lru_cache(maxsize=None)
@@ -44,10 +44,10 @@ def minimax(
 
     best = float("inf")
     best_move: State | None = None
-    for c1 in color:
-        for c2 in color:
-            for c3 in color:
-                for c4 in color:
+    for c1 in Color:
+        for c2 in Color:
+            for c3 in Color:
+                for c4 in Color:
                     if len(history)<2:
                         print("  "*len(history) + f"{((c1.value*6+c2.value)*6+c3.value)*6+c4.value}/{6**4}")
                     worst = 0
@@ -78,6 +78,6 @@ def minimax(
 
 
 possibilities: tuple[State, ...] = tuple(
-    (c1, c2, c3, c4) for c1 in color for c2 in color for c3 in color for c4 in color
+    (c1, c2, c3, c4) for c1 in Color for c2 in Color for c3 in Color for c4 in Color
 )
 print(minimax(possibilities))
