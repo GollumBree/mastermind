@@ -1,0 +1,64 @@
+Timer unit: 1e-09 s
+
+Total time: 20.9512 s
+File: /workspaces/mastermind/main.py
+Function: minimax at line 37
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    37                                           @profile
+    38                                           def minimax(
+    39                                               pos: tuple[State, ...],
+    40                                               history: tuple[tuple[State, tuple[int, int]], ...] = (),
+    41                                               a=float("inf"),
+    42                                               b=0.0,
+    43                                           ) -> tuple[float, State | None]:
+    44      1774    1166161.0    657.4      0.0      if len(pos) == 1:
+    45      1772    1161212.0    655.3      0.0          return 0, pos[0]
+    46                                               
+    47         2       1403.0    701.5      0.0      if len(history) >= 3:
+    48                                                   return float("inf"), None
+    49                                           
+    50         2       2776.0   1388.0      0.0      best = float("inf")
+    51         2        952.0    476.0      0.0      best_move: State | None = None
+    52         2       1873.0    936.5      0.0      for c1 in Color.BLACK,:
+    53         2       1482.0    741.0      0.0          for c2 in (Color.BLACK,Color.WHITE):
+    54         2       1312.0    656.0      0.0              for c3 in (Color.BLACK,Color.WHITE,Color.RED):
+    55         3       3226.0   1075.3      0.0                  for c4 in (Color.BLACK,Color.WHITE,Color.RED,Color.GREEN):
+    56         3       1883.0    627.7      0.0                      if len(history)<2:
+    57         3     122419.0  40806.3      0.0                          print("  "*len(history) + f"{((c1.value*2+c2.value)*3+c3.value)*4+c4.value}/{24}")
+    58         3       2215.0    738.3      0.0                      worst = 0
+    59                                                               # worst_move: State | None = None
+    60      1775     964660.0    543.5      0.0                      for i, sol in enumerate(pos):
+    61      1774     888158.0    500.7      0.0                          if len(history)<1:
+    62         1      13164.0  13164.0      0.0                              print("  "*len(history) + f" {i}/{len(pos)}")
+    63      3548     2.09e+10 5.89e+06     99.8                          new_pos: tuple[State, ...] = tuple(
+    64      1774    1507329.0    849.7      0.0                              filter(lambda s: is_possible(s, history), pos)
+    65                                                                   )
+    66      1773    1079851.0    609.1      0.0                          try:
+    67      3546    6727420.0   1897.2      0.0                              res = minimax(
+    68      1773     759376.0    428.3      0.0                                  new_pos,
+    69      3546    2021458.0    570.1      0.0                                  history
+    70      1773   18595994.0  10488.4      0.1                                  + (((c1, c2, c3, c4), rate((c1, c2, c3, c4), sol)),),
+    71      1773     775287.0    437.3      0.0                                  a, b
+    72                                                                       )
+    73         1       2645.0   2645.0      0.0                          except RecursionError:
+    74                                                                       traceback.print_exc()
+    75                                                                       raise Exception("Recursion depth exceeded")
+    76      1772    1186476.0    669.6      0.0                          if res[0] > a:
+    77                                                                       print("pruning a:", res[0], ">", a)
+    78                                                                       break
+    79      1772     915048.0    516.4      0.0                          if res[0] > worst:
+    80                                                                       worst = res[0]
+    81                                                                       b = max(b,worst)
+    82                                                                       # worst_move = res[1]
+    83         1        761.0    761.0      0.0                      if worst < b:
+    84                                                                   print("pruning b:", worst,"<", b)
+    85                                                                   return 0, None
+    86         1        491.0    491.0      0.0                      if worst < best:
+    87         1       2695.0   2695.0      0.0                          a = min(a,worst)
+    88         1        571.0    571.0      0.0                          best = worst
+    89         1        651.0    651.0      0.0                          best_move = (c1, c2, c3, c4)
+    90                                               return best + 1, best_move
+
+ 20.95 seconds - /workspaces/mastermind/main.py:37 - minimax
