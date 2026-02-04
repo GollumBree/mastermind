@@ -1,6 +1,8 @@
+from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
-from line_profiler import profile
+from itertools import product
+import sys
 
 
 class Color(Enum):
@@ -11,13 +13,11 @@ class Color(Enum):
     BLUE = 4
     YELLOW = 5
 
-
-type State = tuple[Color, Color, Color, Color]
-type UnfinishedState = tuple[set[Color], set[Color], set[Color], set[Color]]
-
+_all_codes = list(product(Color, repeat=4))
+all_codes = _all_codes.copy
 
 @lru_cache(maxsize=None)
-def rate(state: State, sol: State) -> tuple[int, int]:
+def rate(state: tuple[Color, Color, Color, Color], sol: tuple[Color, Color, Color, Color]) -> tuple[int, int]:
     exact = 0
     sc = [0, 0, 0, 0, 0, 0]
     gc = [0, 0, 0, 0, 0, 0]
@@ -41,99 +41,86 @@ def rate(state: State, sol: State) -> tuple[int, int]:
     return exact, value_only
 
 
-# @lru_cache(maxsize=None)
-def is_possible(
-    guess: State, history: tuple[tuple[State, tuple[int, int]], ...]
-) -> bool:
-    for prev_guess, prev_rate in history:
-        if rate(prev_guess, guess) != prev_rate:
-            return False
-    return True
+def next_guess(candidates):
+
+    best_move = None
+    best_worst = float("inf")
+    is_candidate: bool = False
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    for move in all_codes():
+        scores = defaultdict(int)
+        for c in candidates:
+            scores[rate(move, c)] += 1
+
+        if len(scores) == 0:
+            print("Unmöglicher Zustand, Eingaben überprüfen!")
+            sys.exit(42)
+
+        worst = max(scores.values())
+
+        if worst < best_worst or (
+            worst == best_worst and move in candidates and not is_candidate
+        ):
+            best_worst = worst
+            best_move = move
+            is_candidate = move in candidates
+
+    return best_move
 
 
-@lru_cache(maxsize=None)
-@profile
-def minimax(
-    pos: tuple[State, ...],
-    history: tuple[tuple[State, tuple[int, int]], ...] = (),
-    a=float("inf"),
-    b=-1,
-) -> tuple[float, State | None]:
-    if len(history) >= 5:
-        return float("inf"), None
+def solve_interactive():
+    candidates = all_codes()
+    guess = next_guess(candidates)
 
-    pos = tuple(filter(lambda s: is_possible(s, history), pos))
+    for turn in range(1, 10):
+        print(f"Zug {turn}: {' '.join(color.name for color in guess)}")
 
-    if len(pos) == 1:
-        return 0, pos[0]
+        while True:
+            fb_in = input("Feedback (schwarz grau): ").replace(",", "").replace(" ", "")
+            if len(fb_in) == 2 and all(c in "01234" for c in fb_in):
+                break
+            else:
+                print("Bitte zwei Zahlen (<4) eingeben.")
 
-    best = float("inf")
-    best_move: State | None = None
-    for c1 in (Color.BLACK, Color.WHITE):
-        for c2 in (Color.BLACK, Color.WHITE):
-            for c3 in (Color.BLACK, Color.WHITE):
-                for c4 in (Color.BLACK, Color.WHITE):
-                    if len(history) < 2:
-                        print(
-                            "  " * len(history)
-                            + f"{((c1.value * 2 + c2.value) * 2 + c3.value) * 2 + c4.value + 1}/{16}"
-                        )
-                    worst = -1
-                    # worst_move: State | None = None
-                    for i, sol in enumerate(pos):
-                        # for sol in pos:
-                        if len(history) < 1:
-                            print("  " * len(history) + f" {i + 1}/{len(pos)}")
+        b, w = map(int, fb_in)
 
-                        res = minimax(
-                            pos,
-                            history
-                            + (((c1, c2, c3, c4), rate((c1, c2, c3, c4), sol)),),
-                            a,
-                            b,
-                        )
+        if (b, w) == (4, 0):
+            print("Gelöst!")
+            return
 
-                        if res[0] > worst:
-                            worst = res[0]
-                            if res[0] > a:
-                                # print("pruning a:", res[0], ">", a)
-                                break
-                            b = max(b, worst)
-                            # if worst == float("inf"):
-                            #     raise Exception(history)
-                            # worst_move = res[1]
-                    if worst < best:
-                        best = worst
-                        best_move = (c1, c2, c3, c4)
-                        if worst < b:
-                            # print("pruning b:", worst, "<", b)
-                            return best + 1, best_move
-                        a = min(a, worst)
-    # if best_move is not None:
-    #     print("returning:", best + 1, best_move)
-    return best + 1, best_move
+        candidates = [c for c in candidates if rate(guess, c) == (b, w)]
+        print(f"Noch {len(candidates)} mögliche Codes")
+
+        guess = next_guess(candidates)
+
+    raise RuntimeError("Nicht gelöst.")
 
 
-possibilities: tuple[State, ...] = tuple(
-    (c1, c2, c3, c4)
-    for c1 in (Color.BLACK, Color.WHITE)
-    for c2 in (Color.BLACK, Color.WHITE)
-    for c3 in (Color.BLACK, Color.WHITE)
-    for c4 in (Color.BLACK, Color.WHITE)
-)
-history: tuple[tuple[State, tuple[int, int]], ...] = ()
-SOL = (
-    Color.BLACK,
-    Color.WHITE,
-    Color.BLACK,
-    Color.WHITE,
-)  # The actual solution for testing
-while True:
-    moves, best_move = minimax(possibilities)
-    print("Best move:", best_move, "in", moves, "moves")
-    history += ((best_move, rate(best_move, SOL)),)
-    possibilities = tuple(filter(lambda s: is_possible(s, history), possibilities))
-    print("Remaining possibilities:", len(possibilities))
-    if len(possibilities) == 1:
-        print("Solution found:", possibilities[0])
-        break
+def solve_with_secret(secret):
+    candidates = all_codes()
+    guess = next_guess(candidates)
+
+    for turn in range(1, 10):
+        fb = rate(guess, secret)
+
+        if fb == (4, 0):
+            return turn
+
+        candidates = [c for c in candidates if rate(guess, c) == fb]
+        guess = next_guess(candidates)
+    raise RuntimeError("Nicht gelöst.")
+
+
+if __name__ == "__main__":
+    # solve_interactive()
+    results = [0] * 10
+    for test_code in all_codes():
+        # print("\n---\n")
+        results[solve_with_secret(test_code)] += 1
+    print("Verteilung der Lösungszüge über alle Codes:")
+    for turns, count in enumerate(results):
+        if count > 0:
+            print(f"{turns} Züge: {count} Codes")
