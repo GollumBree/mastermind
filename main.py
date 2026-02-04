@@ -3,6 +3,10 @@ from enum import Enum
 from functools import lru_cache
 from itertools import product
 import sys
+from plruc import plruc as persistent_lru_cache
+
+
+SLOTS = 4
 
 
 class Color(Enum):
@@ -13,11 +17,12 @@ class Color(Enum):
     BLUE = 4
     YELLOW = 5
 
-_all_codes = list(product(Color, repeat=4))
+
+_all_codes = list(product(Color, repeat=SLOTS))
 all_codes = _all_codes.copy
 
 @lru_cache(maxsize=None)
-def rate(state: tuple[Color, Color, Color, Color], sol: tuple[Color, Color, Color, Color]) -> tuple[int, int]:
+def rate(state: tuple[Color, ...], sol: tuple[Color, ...]) -> tuple[int, int]:
     exact = 0
     sc = [0, 0, 0, 0, 0, 0]
     gc = [0, 0, 0, 0, 0, 0]
@@ -40,8 +45,9 @@ def rate(state: tuple[Color, Color, Color, Color], sol: tuple[Color, Color, Colo
 
     return exact, value_only
 
-
-def next_guess(candidates):
+@lru_cache(maxsize=None)
+@persistent_lru_cache
+def next_guess(candidates, debug=False):
 
     best_move = None
     best_worst = float("inf")
@@ -50,7 +56,12 @@ def next_guess(candidates):
     if len(candidates) == 1:
         return candidates[0]
 
-    for move in all_codes():
+    for i, move in enumerate(all_codes()):
+        if debug:
+            print(
+                f"Evaluating move {i+1}/{len(_all_codes)}: {' '.join(color.name for color in move)}...                          ",
+                end="\r",
+            )
         scores = defaultdict(int)
         for c in candidates:
             scores[rate(move, c)] += 1
@@ -72,55 +83,62 @@ def next_guess(candidates):
 
 
 def solve_interactive():
-    candidates = all_codes()
-    guess = next_guess(candidates)
+    candidates = tuple(all_codes())
+    guess = next_guess(candidates, debug=True)
 
-    for turn in range(1, 10):
+    for turn in range(1, 20):
         print(f"Zug {turn}: {' '.join(color.name for color in guess)}")
 
         while True:
             fb_in = input("Feedback (schwarz grau): ").replace(",", "").replace(" ", "")
-            if len(fb_in) == 2 and all(c in "01234" for c in fb_in):
+            if len(fb_in) == 2 and all(
+                c in "".join(str(i) for i in range(SLOTS + 1)) for c in fb_in
+            ):
                 break
             else:
-                print("Bitte zwei Zahlen (<4) eingeben.")
+                print(f"Bitte zwei Zahlen (<{SLOTS+1}) eingeben.")
 
         b, w = map(int, fb_in)
 
-        if (b, w) == (4, 0):
+        if (b, w) == (SLOTS, 0):
             print("Gelöst!")
             return
 
-        candidates = [c for c in candidates if rate(guess, c) == (b, w)]
+        candidates = tuple(c for c in candidates if rate(guess, c) == (b, w))
         print(f"Noch {len(candidates)} mögliche Codes")
 
-        guess = next_guess(candidates)
+        guess = next_guess(candidates, debug=True)
+        print("Evaluated.")
 
     raise RuntimeError("Nicht gelöst.")
 
 
 def solve_with_secret(secret):
-    candidates = all_codes()
-    guess = next_guess(candidates)
+    candidates = tuple(all_codes())
+    guess = next_guess(candidates, debug=True)
 
-    for turn in range(1, 10):
+    for turn in range(1, 20):
         fb = rate(guess, secret)
 
-        if fb == (4, 0):
+        if fb == (SLOTS, 0):
             return turn
 
-        candidates = [c for c in candidates if rate(guess, c) == fb]
+        candidates = tuple(c for c in candidates if rate(guess, c) == fb)
         guess = next_guess(candidates)
     raise RuntimeError("Nicht gelöst.")
 
 
 if __name__ == "__main__":
-    # solve_interactive()
-    results = [0] * 10
-    for test_code in all_codes():
-        # print("\n---\n")
-        results[solve_with_secret(test_code)] += 1
-    print("Verteilung der Lösungszüge über alle Codes:")
-    for turns, count in enumerate(results):
-        if count > 0:
-            print(f"{turns} Züge: {count} Codes")
+    if sys.argv[-1] in ("--test", "_-_i-am-crazy-and-want-to-test-all-codes"):
+        results = [0] * 20
+        for i, test_code in enumerate(all_codes()):
+            results[solve_with_secret(test_code)] += 1
+            print(f"Code {i+1:>4}/{len(_all_codes)} gelöst.", end="\r")
+        print("Verteilung der Lösungszüge über alle Codes:")
+        for turns, count in enumerate(results):
+            if count > 0:
+                print(
+                    f"{turns} {'Züge:' if turns > 1 else 'Zug: '} {count:>4} Codes ({f'{count/len(_all_codes)*100:.2f}':>5}%)"
+                )
+    else:
+        solve_interactive()
