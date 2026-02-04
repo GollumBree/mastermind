@@ -1,6 +1,8 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 from enum import Enum
+from functools import lru_cache
 from itertools import product
+import sys
 
 
 class Color(Enum):
@@ -11,22 +13,34 @@ class Color(Enum):
     BLUE = 4
     YELLOW = 5
 
+type State = tuple[Color, Color, Color, Color]
 
 _all_codes = list(product(Color, repeat=4))
 all_codes = _all_codes.copy
 
+@lru_cache(maxsize=None)
+def rate(state: State, sol: State) -> tuple[int, int]:
+    exact = 0
+    sc = [0, 0, 0, 0, 0, 0]
+    gc = [0, 0, 0, 0, 0, 0]
 
-def score(guess, code):
-    blacks = sum(g == c for g, c in zip(guess, code))
+    for s, g in zip(sol, state):
+        if s == g:
+            exact += 1
+        else:
+            sc[s.value] += 1
+            gc[g.value] += 1
 
-    g_rest = [g for g, c in zip(guess, code) if g != c]
-    c_rest = [c for g, c in zip(guess, code) if g != c]
+    value_only = (
+        min(sc[0], gc[0])
+        + min(sc[1], gc[1])
+        + min(sc[2], gc[2])
+        + min(sc[3], gc[3])
+        + min(sc[4], gc[4])
+        + min(sc[5], gc[5])
+    )
 
-    cg = Counter(g_rest)
-    cc = Counter(c_rest)
-
-    whites = sum(min(cg[col], cc[col]) for col in cg)
-    return (blacks, whites)
+    return exact, value_only
 
 
 def next_guess(candidates):
@@ -41,7 +55,11 @@ def next_guess(candidates):
     for move in all_codes():
         scores = defaultdict(int)
         for c in candidates:
-            scores[score(move, c)] += 1
+            scores[rate(move, c)] += 1
+
+        if len(scores) == 0:
+            print("Unmöglicher Zustand, Eingaben überprüfen!")
+            sys.exit(42)
 
         worst = max(scores.values())
 
@@ -62,17 +80,20 @@ def solve_interactive():
     for turn in range(1, 10):
         print(f"Zug {turn}: {" ".join(color.name for color in guess)}")
 
-        fb_in = input("Feedback (schwarz grau): ").strip()
-        if not fb_in:
-            print("Abbruch.")
-            return
-        b, w = map(int, fb_in.split())
+        while True:
+            fb_in = input("Feedback (schwarz grau): ").replace(",", "").replace(" ", "")
+            if len(fb_in) == 2 and all(c in "01234" for c in fb_in):
+                break
+            else:
+                print("Bitte zwei Zahlen (<4) eingeben.")
+
+        b, w = map(int, fb_in)
 
         if (b, w) == (4, 0):
             print("Gelöst!")
             return
 
-        candidates = [c for c in candidates if score(guess, c) == (b, w)]
+        candidates = [c for c in candidates if rate(guess, c) == (b, w)]
         print(f"Noch {len(candidates)} mögliche Codes")
 
         guess = next_guess(candidates)
@@ -85,12 +106,12 @@ def solve_with_secret(secret):
     guess = next_guess(candidates)
 
     for turn in range(1, 10):
-        fb = score(guess, secret)
+        fb = rate(guess, secret)
 
         if fb == (4, 0):
             return turn
 
-        candidates = [c for c in candidates if score(guess, c) == fb]
+        candidates = [c for c in candidates if rate(guess, c) == fb]
         guess = next_guess(candidates)
     raise RuntimeError("Nicht gelöst.")
 
